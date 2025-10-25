@@ -1,0 +1,91 @@
+# saxv_chain_mini_v5.py
+# Minimal blockchain for Pydroid 3 / HP
+
+import json
+import time
+import hashlib
+import os
+
+CHAIN_FILE = "saxv_chain.json"
+
+# =======================
+# Block structure
+# =======================
+class Block:
+    def __init__(self, index, previous_hash, timestamp, transactions, nonce=0):
+        self.index = index
+        self.previous_hash = previous_hash
+        self.timestamp = timestamp
+        self.transactions = transactions  # List of dicts
+        self.nonce = nonce
+
+    def to_dict(self):
+        return {
+            "index": self.index,
+            "previous_hash": self.previous_hash,
+            "timestamp": self.timestamp,
+            "transactions": self.transactions,
+            "nonce": self.nonce
+        }
+
+    def hash(self):
+        block_string = json.dumps(self.to_dict(), sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+
+# =======================
+# Blockchain functions
+# =======================
+def create_genesis_block():
+    return Block(0, "0", int(time.time()), [{"msg": "Genesis Block"}])
+
+def load_chain():
+    if os.path.exists(CHAIN_FILE):
+        with open(CHAIN_FILE, "r") as f:
+            data = json.load(f)
+            chain = []
+            for blk in data:
+                chain.append(Block(
+                    blk["index"],
+                    blk["previous_hash"],
+                    blk["timestamp"],
+                    blk["transactions"],
+                    blk.get("nonce",0)
+                ))
+            return chain
+    else:
+        return [create_genesis_block()]
+
+def save_chain(chain):
+    data = [blk.to_dict() for blk in chain]
+    with open(CHAIN_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+def add_block(chain, transactions):
+    last_block = chain[-1]
+    new_block = Block(
+        index=last_block.index + 1,
+        previous_hash=last_block.hash(),
+        timestamp=int(time.time()),
+        transactions=transactions
+    )
+    # Simple proof-of-work (very light for HP)
+    while not new_block.hash().startswith("0"):
+        new_block.nonce += 1
+        if new_block.nonce > 1000:  # prevent infinite loop
+            break
+    chain.append(new_block)
+    save_chain(chain)
+    print(f"Block {new_block.index} added. Hash: {new_block.hash()}")
+
+# =======================
+# Main
+# =======================
+if __name__ == "__main__":
+    chain = load_chain()
+    print(f"Loaded chain with {len(chain)} blocks.")
+
+    # Example: add a transaction
+    tx = [{"from": "Alice", "to": "Bob", "amount": 10}]
+    add_block(chain, tx)
+
+    print("Chain saved successfully!")
